@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TCC Library Monitoring Time In and Out</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f7f7f7;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    .container {
+      max-width: 500px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    .buttons button {
+      flex: 1;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .buttons button:hover {
+      background-color: #0056b3;
+    }
+    .admin-link {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .admin {
+      display: none;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #eaeaea;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="main">
+    <h1>TCC Library Monitoring</h1>
+    <p>Fill in your details and click Time In or Time Out.</p>
+
+    <label for="idNumber">TCC ID Number:</label>
+    <input type="text" id="idNumber" placeholder="e.g. 2024-XXXXX">
+
+    <label for="name">Name:</label>
+    <input type="text" id="name">
+
+    <label for="program">Program, Year & Section:</label>
+    <input type="text" id="program" placeholder="e.g. BSCE 2A">
+
+    <label for="purpose">Purpose:</label>
+    <input type="text" id="purpose">
+
+    <div class="buttons">
+      <button onclick="submitData('Time In')">Time In</button>
+      <button onclick="submitData('Time Out')">Time Out</button>
+    </div>
+
+    <div class="admin-link">
+      <a href="#" onclick="showAdminLogin()">Admin Login</a>
+    </div>
+  </div>
+
+  <div class="container admin" id="admin-login">
+    <h2>Admin Login</h2>
+    <label for="admin-pass">Password:</label>
+    <input type="password" id="admin-pass">
+    <button onclick="loginAdmin()">Login</button>
+  </div>
+
+  <div class="container admin" id="admin-panel">
+    <h2>Logs</h2>
+    <button onclick="exportCSV()">Export CSV</button>
+    <table id="log-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>ID Number</th>
+          <th>Name</th>
+          <th>Program, Year & Section</th>
+          <th>Purpose</th>
+          <th>Time In</th>
+          <th>Time Out</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const password = "TCClibrary 24";
+
+    function capitalizeWords(str) {
+      return str.replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function submitData(status) {
+      const idNumber = document.getElementById("idNumber").value.trim();
+      const name = document.getElementById("name").value.trim();
+      const program = document.getElementById("program").value.trim();
+      const purpose = document.getElementById("purpose").value.trim();
+      const now = new Date();
+      const date = now.toLocaleDateString();
+      const time = now.toLocaleTimeString();
+
+      if (!idNumber || !name || !program || !purpose) {
+        alert("Please fill in all fields.");
+        return;
+      }
+
+      let logs = JSON.parse(localStorage.getItem("logs") || "[]");
+      const existing = logs.find(log => log.date === date && log.idNumber === idNumber);
+
+      if (status === "Time In") {
+        if (existing && existing.timeIn) {
+          alert("You already timed in today.");
+          return;
+        } else if (existing) {
+          existing.timeIn = time;
+        } else {
+          logs.push({ date, idNumber, name, program, purpose, timeIn: time, timeOut: "" });
+        }
+      }
+
+      if (status === "Time Out") {
+        if (!existing) {
+          alert("No Time In found for today. Please Time In first.");
+          return;
+        } else if (existing.timeOut) {
+          alert("You already timed out today.");
+          return;
+        } else {
+          existing.timeOut = time;
+        }
+      }
+
+      localStorage.setItem("logs", JSON.stringify(logs));
+      alert(`${status} recorded for ${name}`);
+
+      document.getElementById("idNumber").value = "";
+      document.getElementById("name").value = "";
+      document.getElementById("program").value = "";
+      document.getElementById("purpose").value = "";
+    }
+
+    function showAdminLogin() {
+      document.getElementById("main").style.display = "none";
+      document.getElementById("admin-login").style.display = "block";
+    }
+
+    function loginAdmin() {
+      const input = document.getElementById("admin-pass").value;
+      if (input === password) {
+        document.getElementById("admin-login").style.display = "none";
+        document.getElementById("admin-panel").style.display = "block";
+        loadLogs();
+      } else {
+        alert("Incorrect password.");
+      }
+    }
+
+    function loadLogs() {
+      const logs = JSON.parse(localStorage.getItem("logs") || "[]");
+
+      logs.sort((a, b) => {
+        const da = new Date(`${a.date} ${a.timeIn || a.timeOut || ''}`);
+        const db = new Date(`${b.date} ${b.timeIn || b.timeOut || ''}`);
+        return db - da;
+      });
+
+      const tbody = document.querySelector("#log-table tbody");
+      tbody.innerHTML = "";
+
+      logs.forEach(log => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${log.date}</td>
+          <td>${log.idNumber}</td>
+          <td>${capitalizeWords(log.name)}</td>
+          <td>${log.program}</td>
+          <td>${log.purpose}</td>
+          <td>${log.timeIn || "-"}</td>
+          <td>${log.timeOut || "-"}</td>`;
+        tbody.appendChild(row);
+      });
+    }
+
+    function exportCSV() {
+      const logs = JSON.parse(localStorage.getItem("logs") || "[]");
+
+      logs.sort((a, b) => {
+        const da = new Date(`${a.date} ${a.timeIn || a.timeOut || ''}`);
+        const db = new Date(`${b.date} ${b.timeIn || b.timeOut || ''}`);
+        return db - da;
+      });
+
+      let csv = "Date,ID Number,Name,Program,Year & Section,Purpose,Time In,Time Out\n";
+      logs.forEach(log => {
+        csv += `${log.date},"${log.idNumber}","${capitalizeWords(log.name)}","${log.program}","${log.purpose}",${log.timeIn || ""},${log.timeOut || ""}\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "library_logs.csv";
+      a.click();
+    }
+  </script>
+</body>
+</html>
